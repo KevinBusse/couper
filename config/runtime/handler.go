@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -17,7 +18,7 @@ import (
 
 	ac "github.com/avenga/couper/accesscontrol"
 	"github.com/avenga/couper/config"
-	"github.com/avenga/couper/errors"
+	errs "github.com/avenga/couper/errors"
 	"github.com/avenga/couper/handler"
 	"github.com/avenga/couper/internal/seetie"
 	"github.com/avenga/couper/utils"
@@ -100,13 +101,13 @@ func BuildEntrypointHandlers(conf *config.Gateway, httpConf *HTTPConfig, log *lo
 		configureBasePathes(server)
 
 		mux := &Mux{
-			APIErrTpl: errors.DefaultJSON,
-			FSErrTpl:  errors.DefaultHTML,
+			APIErrTpl: errs.DefaultJSON,
+			FSErrTpl:  errs.DefaultHTML,
 		}
 
 		if server.Files != nil {
 			if server.Files.ErrorFile != "" {
-				if mux.FSErrTpl, err = errors.NewTemplateFromFile(getAbsPath(server.Files.ErrorFile, log)); err != nil {
+				if mux.FSErrTpl, err = errs.NewTemplateFromFile(getAbsPath(server.Files.ErrorFile, log)); err != nil {
 					log.Fatal(err)
 				}
 			}
@@ -118,7 +119,7 @@ func BuildEntrypointHandlers(conf *config.Gateway, httpConf *HTTPConfig, log *lo
 
 		if server.Spa != nil {
 			entryHandler.spa = handler.NewSpa(getAbsPath(server.Spa.BootstrapFile, log))
-			entryHandler.spa = configureProtectedHandler(accessControls, errors.DefaultHTML,
+			entryHandler.spa = configureProtectedHandler(accessControls, errs.DefaultHTML,
 				config.NewAccessControl(server.AccessControl, server.DisableAccessControl),
 				config.NewAccessControl(server.Spa.AccessControl, server.Spa.DisableAccessControl), entryHandler.spa)
 		}
@@ -157,7 +158,7 @@ func BuildEntrypointHandlers(conf *config.Gateway, httpConf *HTTPConfig, log *lo
 		mux.APIPath = server.API.BasePath
 
 		if server.API.ErrorFile != "" {
-			if mux.APIErrTpl, err = errors.NewTemplateFromFile(getAbsPath(server.API.ErrorFile, log)); err != nil {
+			if mux.APIErrTpl, err = errs.NewTemplateFromFile(getAbsPath(server.API.ErrorFile, log)); err != nil {
 				log.Fatal(err)
 			}
 		}
@@ -218,7 +219,7 @@ func BuildEntrypointHandlers(conf *config.Gateway, httpConf *HTTPConfig, log *lo
 
 			// otherwise try to parse an inline block and fallback for api reference or inline block
 			inlineBackend, inlineConf, err := newInlineBackend(conf.Context, endpoint.InlineDefinition, server.API.CORS, log)
-			if err == errorMissingBackend {
+			if errors.Is(err, errorMissingBackend) {
 				if server.API.Backend != "" {
 					if _, ok := backends[server.API.Backend]; !ok {
 						log.Fatalf("backend %q is not defined", server.API.Backend)
@@ -236,7 +237,7 @@ func BuildEntrypointHandlers(conf *config.Gateway, httpConf *HTTPConfig, log *lo
 				}
 
 			} else if err != nil {
-				if err == handler.OriginRequiredError && inlineConf.Name == "" || err != handler.OriginRequiredError {
+				if errors.Is(err, handler.OriginRequiredError) && inlineConf.Name == "" || !errors.Is(err, handler.OriginRequiredError) {
 					log.Fatalf("Range: %s: %v", endpoint.InlineDefinition.MissingItemRange().String(), err) // TODO diags error
 				}
 			}
@@ -391,7 +392,7 @@ func configureAccessControls(conf *config.Gateway) ac.Map {
 	return accessControls
 }
 
-func configureProtectedHandler(m ac.Map, errTpl *errors.Template, parentAC, handlerAC config.AccessControl, h http.Handler) http.Handler {
+func configureProtectedHandler(m ac.Map, errTpl *errs.Template, parentAC, handlerAC config.AccessControl, h http.Handler) http.Handler {
 	var acList ac.List
 	for _, acName := range parentAC.
 		Merge(handlerAC).List() {

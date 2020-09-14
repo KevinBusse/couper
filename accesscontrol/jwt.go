@@ -83,7 +83,7 @@ func NewJWT(algorithm, name string, claims Claims, reqClaims []string, src Sourc
 	}
 
 	pubKey, err := parsePublicPEMKey(key)
-	if err != nil && (err != jwt.ErrKeyMustBePEMEncoded || err != jwt.ErrNotRSAPublicKey) {
+	if err != nil && (!errors.Is(err, jwt.ErrKeyMustBePEMEncoded) || !errors.Is(err, jwt.ErrNotRSAPublicKey)) {
 		cert, err := x509.ParseCertificate(key)
 		if err != nil {
 			decKey, err := base64.StdEncoding.DecodeString(string(key))
@@ -113,7 +113,7 @@ func (j *JWT) Validate(req *http.Request) error {
 
 	switch j.source {
 	case Cookie:
-		if cookie, err := req.Cookie(j.sourceKey); err != nil && err != http.ErrNoCookie {
+		if cookie, err := req.Cookie(j.sourceKey); err != nil && !errors.Is(err, http.ErrNoCookie) {
 			return err
 		} else if cookie != nil {
 			tokenValue = cookie.Value
