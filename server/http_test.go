@@ -26,17 +26,21 @@ func TestHTTPServer_ServeHTTP_Files(t *testing.T) {
 	originBackend := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		if req.Host != expectedAPIHost {
 			rw.WriteHeader(http.StatusBadRequest)
+
 			return
 		}
 		rw.WriteHeader(http.StatusNoContent)
 	}))
+
 	defer originBackend.Close()
 
 	tpl, err := template.ParseFiles("testdata/file_serving/conf_test.hcl")
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	confBytes := &bytes.Buffer{}
+
 	err = tpl.Execute(confBytes, map[string]string{
 		"origin":   "http://" + originBackend.Listener.Addr().String(),
 		"hostname": expectedAPIHost,
@@ -58,7 +62,7 @@ func TestHTTPServer_ServeHTTP_Files(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ports := runtime.BuildEntrypointHandlers(conf, httpConf, log.WithContext(nil))
+	ports := runtime.BuildEntrypointHandlers(conf, httpConf, log.WithContext(context.TODO()))
 
 	errorPageContent, err := ioutil.ReadFile(conf.Server[0].Files.ErrorFile)
 	if err != nil {
@@ -73,6 +77,7 @@ func TestHTTPServer_ServeHTTP_Files(t *testing.T) {
 	port := runtime.Port(strconv.Itoa(httpConf.ListenPort))
 	gw := server.New(ctx, log.WithContext(ctx), httpConf, port, ports[port])
 	gw.Listen()
+
 	defer gw.Close()
 
 	connectClient := http.Client{Transport: &http.Transport{
@@ -105,10 +110,17 @@ func TestHTTPServer_ServeHTTP_Files(t *testing.T) {
 		}
 
 		result := &bytes.Buffer{}
+
 		_, err = io.Copy(result, res.Body)
 		if err != nil {
 			t.Fatal(err)
 		}
+
+		err = res.Body.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		if !bytes.Contains(result.Bytes(), testCase.expectedBody) {
 			t.Errorf("Expected body:\n%s\ngot:\n%s", string(testCase.expectedBody), result.String())
 		}
@@ -120,11 +132,13 @@ func TestHTTPServer_ServeHTTP_Files2(t *testing.T) {
 	originBackend := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		if req.Host != expectedAPIHost {
 			rw.WriteHeader(http.StatusBadRequest)
+
 			return
 		}
 		rw.WriteHeader(http.StatusOK)
 		rw.Write([]byte(req.URL.Path))
 	}))
+
 	defer originBackend.Close()
 
 	cwd, _ := os.Getwd()
@@ -135,7 +149,9 @@ func TestHTTPServer_ServeHTTP_Files2(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	confBytes := &bytes.Buffer{}
+
 	err = tpl.Execute(confBytes, map[string]string{
 		"origin":   "http://" + originBackend.Listener.Addr().String(),
 		"hostname": expectedAPIHost,
@@ -158,16 +174,18 @@ func TestHTTPServer_ServeHTTP_Files2(t *testing.T) {
 	}
 
 	error404Content := []byte("<title>404 FilesRouteNotFound</title>")
+
 	spaContent, err := ioutil.ReadFile(conf.Server[0].Spa.BootstrapFile)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	ports := runtime.BuildEntrypointHandlers(conf, httpConf, log.WithContext(nil))
+	ports := runtime.BuildEntrypointHandlers(conf, httpConf, log.WithContext(context.TODO()))
 	port := runtime.Port(strconv.Itoa(httpConf.ListenPort))
 
 	couper := server.New(ctx, log.WithContext(ctx), httpConf, port, ports[port])
 	couper.Listen()
+
 	defer couper.Close()
 
 	connectClient := http.Client{
@@ -226,10 +244,17 @@ func TestHTTPServer_ServeHTTP_Files2(t *testing.T) {
 		}
 
 		result := &bytes.Buffer{}
+
 		_, err = io.Copy(result, res.Body)
 		if err != nil {
 			t.Fatal(err)
 		}
+
+		err = res.Body.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		if !bytes.Contains(result.Bytes(), testCase.expectedBody) {
 			t.Errorf("Expected body for path %q:\n%s\ngot:\n%s", testCase.path, string(testCase.expectedBody), result.String())
 		}
